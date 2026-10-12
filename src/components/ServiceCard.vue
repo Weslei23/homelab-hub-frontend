@@ -11,6 +11,11 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // Somente visualizacao: o card nao e um link, nao navega nem recebe foco
+  locked: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const iconSrc = computed(() => resolveIcon(props.service.icon))
@@ -19,6 +24,7 @@ const emit = defineEmits(['edit'])
 
 // Sem link configurado: clicar no card abre o editor em vez de navegar
 function onClick(event) {
+  if (props.locked) return
   if (props.service.url === '#') {
     event.preventDefault()
     if (props.editable) emit('edit', props.service)
@@ -27,7 +33,13 @@ function onClick(event) {
 </script>
 
 <template>
-  <a class="card" :href="service.url" target="_blank" rel="noopener" @click="onClick">
+  <component
+    :is="locked ? 'div' : 'a'"
+    class="card"
+    :class="{ locked }"
+    v-bind="locked ? {} : { href: service.url, target: '_blank', rel: 'noopener' }"
+    @click="onClick"
+  >
     <div class="card-icon">
       <img v-if="iconSrc" :src="iconSrc" :alt="service.name" />
       <span v-else class="initial">{{ service.name.charAt(0).toUpperCase() }}</span>
@@ -47,7 +59,7 @@ function onClick(event) {
     >
       ✎
     </button>
-  </a>
+  </component>
 </template>
 
 <style scoped>
@@ -69,6 +81,16 @@ function onClick(event) {
   border-color: #2563eb;
   background: #24304a;
   transform: translateY(-2px);
+}
+
+.card.locked {
+  cursor: default;
+}
+
+.card.locked:hover {
+  border-color: #334155;
+  background: #1e293b;
+  transform: none;
 }
 
 .card-icon {

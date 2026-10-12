@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import servidorIcon from '@/components/icons/servidor.svg'
 import { useCategories } from '@/data/useCategories'
 import { resolveIcon } from '@/data/icons'
+import { isAdmin } from '@/data/useAuth'
 
 const { categories } = useCategories()
 // Acesso rapido mostra a primeira categoria
@@ -46,17 +47,17 @@ function toggleCategory(id) {
           </button>
 
           <nav v-show="!closedCategories[category.id]" class="menu">
-            <a
+            <component
+              :is="isAdmin ? 'a' : 'div'"
               v-for="service in category.services"
               :key="service.id ?? service.name"
               class="links"
-              :href="service.url"
-              target="_blank"
-              rel="noopener"
+              :class="{ locked: !isAdmin }"
+              v-bind="isAdmin ? { href: service.url, target: '_blank', rel: 'noopener' } : {}"
             >
               <img v-if="resolveIcon(service.icon)" :src="resolveIcon(service.icon)" :alt="service.name" />
               <span>{{ service.name }}</span>
-            </a>
+            </component>
           </nav>
         </div>
       </main>
@@ -187,6 +188,15 @@ function toggleCategory(id) {
 
 .links:hover {
   background-color: #2563eb;
+}
+
+/* Somente visualizacao (role USER): nao e clicavel */
+.links.locked {
+  cursor: default;
+}
+
+.links.locked:hover {
+  background-color: transparent;
 }
 
 @media (max-width: 900px) {

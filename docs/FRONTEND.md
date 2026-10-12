@@ -17,6 +17,7 @@ Dashboard de homelab que reúne os atalhos dos serviços (Proxmox, Jellyfin, Por
 11. [Configuração e deploy](#11-configuração-e-deploy)
 12. [Receitas comuns](#12-receitas-comuns)
 13. [Limitações conhecidas e próximos passos](#13-limitações-conhecidas-e-próximos-passos)
+14. [Login e roles](#14-login-e-roles)
 
 ---
 
@@ -276,7 +277,9 @@ Chaves disponíveis hoje: adguard-home, cubecoders-amp, docker, downtify, excali
 
 ## 13. Limitações conhecidas e próximos passos
 
-- **Sem autenticação**: qualquer pessoa na rede com acesso à página pode editar o catálogo.
+- **Token em `localStorage`**: simples, mas legível por qualquer script da página; não há renovação automática (expira em 24 h e o usuário volta ao login).
+- **A interface não acompanha mudança de role em tempo real**: se um admin for rebaixado, a tela só muda ao entrar de novo (o backend já bloqueia as escritas com 403).
+- **Sem tela de gestão de usuários**: promover alguém a admin é feito pela API (`PUT /api/v1/users/{id}/role`).
 - **Sem reordenação** de cards e categorias (a ordem é a de criação).
 - **Não é possível mover** um card para outra categoria (só recriar).
 - **Recarga completa** do catálogo após cada alteração (simples, mas faz uma requisição a mais).
@@ -284,3 +287,25 @@ Chaves disponíveis hoje: adguard-home, cubecoders-amp, docker, downtify, excali
 - **Cores duplicadas** nos componentes; um tema com variáveis CSS facilitaria claro/escuro.
 - **Sem testes** automatizados nem linter configurado.
 - **Status online/offline** dos serviços ainda não existe.
+
+## 14. Login e roles
+
+O dashboard só aparece depois do login. Há duas roles, definidas no backend:
+
+| Role | O que vê e pode fazer |
+| --- | --- |
+| `USER` | Vê o dashboard e usa a busca. Os cards e os links do "Acesso rápido" **não são clicáveis** (viram elementos sem link, sem hover e sem foco). Não há botão "Editar". Selo "Somente leitura". |
+| `ADMIN` | Cards e links clicáveis, botão "Editar" e todas as ações de criar, renomear, editar e excluir categorias e cards. Selo "Administrador". |
+
+### Arquivos
+
+- `data/useAuth.js`: sessão (`token`, `username`, `email`, `role`) guardada em `localStorage` (chave `homepage.session`). Expõe `login`, `register`, `logout`, `isAuthenticated` e `isAdmin`.
+- `components/LoginView.vue`: tela de login e de criação de conta. Contas novas são sempre `USER`.
+- `data/catalogApi.js`: envia `Authorization: Bearer <token>` e, se receber `401`, faz logout e volta ao login. Um `403` mostra a mensagem do backend.
+- `App.vue`: mostra `LoginView` quando não há sessão e o dashboard quando há.
+- `Dashboard.vue`: botão "Editar" e controles de edição só com `isAdmin`; mostra usuário, selo da role e botão "Sair".
+- `ServiceCard.vue` (prop `locked`) e `Sidebar.vue`: renderizam `div` em vez de `a` para `USER`.
+
+### Importante
+
+Esconder botões e desativar links é só experiência de uso. A segurança está no backend, que responde `403` a qualquer escrita de um `USER`. Como a API continua enviando a `url` de cada card no JSON, um `USER` técnico ainda consegue ver os endereços nas ferramentas do navegador; se isso for um problema, o backend pode omitir a `url` para essa role.

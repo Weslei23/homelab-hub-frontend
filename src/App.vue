@@ -2,12 +2,16 @@
 import { ref } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import Dashboard from './components/Dashboard.vue'
+import LoginView from './components/LoginView.vue'
+import { isAuthenticated } from '@/data/useAuth'
 
 const sidebarOpen = ref(false)
 </script>
 
 <template>
-  <div class="layout">
+  <LoginView v-if="!isAuthenticated" />
+
+  <div v-else class="layout">
     <button class="menu-btn" @click="sidebarOpen = true" aria-label="Abrir menu">☰</button>
 
     <div class="sidebar-wrapper" :class="{ open: sidebarOpen }">

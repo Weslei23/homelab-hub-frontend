@@ -1,11 +1,22 @@
+import { getToken, logout } from '@/data/useAuth'
+
 const BASE = import.meta.env.VITE_API_URL || ''
 
 async function request(path, options = {}) {
+  const token = getToken()
   const res = await fetch(`${BASE}/api${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...options,
   })
   if (!res.ok) {
+    // 401: token ausente, invalido ou expirado -> volta para a tela de login
+    if (res.status === 401) {
+      logout()
+      throw new Error('Sessão expirada. Entre novamente.')
+    }
     let message = 'Erro ao comunicar com o servidor'
     try {
       message = (await res.json()).message || message

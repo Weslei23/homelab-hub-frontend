@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useCategories, loadCatalog } from '@/data/useCategories'
+import { useAuth } from '@/data/useAuth'
 import CardModal from '@/components/CardModal.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 import ServiceCard from '@/components/ServiceCard.vue'
@@ -8,10 +9,12 @@ import ServiceCard from '@/components/ServiceCard.vue'
 const { categories, apiOnline, addCategory, renameCategory, removeCategory, addCard, updateCard, removeCard } =
   useCategories()
 
+const { session, isAdmin, logout } = useAuth()
+
 const search = ref('')
 const editMode = ref(false)
-// Controles de edicao so aparecem com o backend online e o modo de edicao ligado
-const canEdit = computed(() => apiOnline.value && editMode.value)
+// Controles de edicao so aparecem para ADMIN, com o backend online e o modo de edicao ligado
+const canEdit = computed(() => isAdmin.value && apiOnline.value && editMode.value)
 const cardTarget = ref(null)
 const categoryTarget = ref(null)
 
@@ -100,7 +103,7 @@ const filteredCategories = computed(() => {
           + Categoria
         </button>
         <button
-          v-if="apiOnline"
+          v-if="isAdmin && apiOnline"
           class="edit-toggle"
           :class="{ active: editMode }"
           :aria-pressed="editMode"
@@ -108,6 +111,11 @@ const filteredCategories = computed(() => {
         >
           {{ editMode ? '✓ Concluir' : '✎ Editar' }}
         </button>
+        <div class="user-box">
+          <span class="user-name">{{ session?.username }}</span>
+          <span class="role-badge" :class="{ admin: isAdmin }">{{ isAdmin ? 'Administrador' : 'Somente leitura' }}</span>
+          <button class="logout-btn" @click="logout">Sair</button>
+        </div>
       </div>
     </header>
 
@@ -131,6 +139,7 @@ const filteredCategories = computed(() => {
           :key="service.id ?? service.name"
           :service="service"
           :editable="canEdit"
+          :locked="!isAdmin"
           @edit="cardTarget = { mode: 'edit', card: $event }"
         />
         <button
@@ -145,7 +154,8 @@ const filteredCategories = computed(() => {
 
     <p v-if="filteredCategories.length === 0" class="empty">
       <template v-if="search.trim()">Nenhum serviço encontrado para "{{ search }}".</template>
-      <template v-else>Nenhuma categoria ainda. Clique em "Editar" e depois em "+ Categoria".</template>
+      <template v-else-if="isAdmin">Nenhuma categoria ainda. Clique em "Editar" e depois em "+ Categoria".</template>
+      <template v-else>Nenhuma categoria disponível.</template>
     </p>
 
     <CardModal :target="cardTarget" :on-submit="submitCard" :on-delete="() => removeCard(cardTarget.card.id)"
@@ -254,6 +264,49 @@ const filteredCategories = computed(() => {
 
 .add-card {
   min-height: 74px;
+}
+
+.user-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  border-left: 1px solid #334155;
+}
+
+.user-name {
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.role-badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+}
+
+.role-badge.admin {
+  background: #172554;
+  border-color: #2563eb;
+  color: #93c5fd;
+}
+
+.logout-btn {
+  background: none;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.logout-btn:hover {
+  border-color: #2563eb;
+  color: #fff;
 }
 
 .add-category:hover,

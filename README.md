@@ -13,6 +13,10 @@ npm run dev
 
 Outros comandos: `npm run build` (gera `dist/`) e `npm run preview`.
 
+## Acesso
+
+É preciso entrar com e-mail e senha. `USER` apenas visualiza (cards e links sem clique); `ADMIN` também edita. Detalhes em [docs/FRONTEND.md](docs/FRONTEND.md#14-login-e-roles).
+
 ## Documentação
 
 Funcionalidades, estrutura, componentes, API e deploy: [docs/FRONTEND.md](docs/FRONTEND.md).
