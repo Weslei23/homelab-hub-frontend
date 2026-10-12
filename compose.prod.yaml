@@ -1,0 +1,14 @@
+# Usado pelo Jenkins. Depende do backend ja estar no ar (rede do compose "homepage").
+services:
+  frontend:
+    image: homepage-frontend:${IMAGE_TAG:-latest}
+    ports:
+      - "${HOST_PORT:-8082}:80"
+    networks:
+      - backend-net
+    restart: unless-stopped
+
+networks:
+  backend-net:
+    external: true
+    name: homepage_default
