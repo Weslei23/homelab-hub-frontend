@@ -6,7 +6,7 @@ import { json, request } from '@/data/catalogApi'
 export const POLL_ACTIVE_MS = 3000
 export const POLL_IDLE_MS = 15000
 
-/** { configured, reachable, version, syncInterval } */
+/** { configured, reachable, version, syncInterval, url } */
 export const fetchMusicStatus = () => request('/music/status')
 
 /** Coloca na fila uma faixa, album ou playlist. Devolve { queued, type }. */
@@ -14,7 +14,6 @@ export const downloadMusic = (url) => request('/music/downloads', json('POST', {
 
 /** [{ title, artists, status: 'queued' | 'downloading' | 'done' | 'error', progress, message }] */
 export const fetchMusicQueue = () => request('/music/queue')
-export const clearCompletedQueue = () => request('/music/queue/completed', { method: 'DELETE' })
 
 export const fetchPlaylists = () => request('/music/playlists')
 export const addPlaylist = (url, name) => request('/music/playlists', json('POST', { url, name: name || null }))

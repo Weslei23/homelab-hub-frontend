@@ -11,7 +11,6 @@ describe('rotas', () => {
     ['fetchMusicStatus', () => api.fetchMusicStatus(), '/api/music/status', 'GET', undefined],
     ['downloadMusic', () => api.downloadMusic('https://x'), '/api/music/downloads', 'POST', { url: 'https://x' }],
     ['fetchMusicQueue', () => api.fetchMusicQueue(), '/api/music/queue', 'GET', undefined],
-    ['clearCompletedQueue', () => api.clearCompletedQueue(), '/api/music/queue/completed', 'DELETE', undefined],
     ['fetchPlaylists', () => api.fetchPlaylists(), '/api/music/playlists', 'GET', undefined],
     ['addPlaylist', () => api.addPlaylist('https://p', 'Mix'), '/api/music/playlists', 'POST', { url: 'https://p', name: 'Mix' }],
     ['addPlaylist sem nome', () => api.addPlaylist('https://p', ''), '/api/music/playlists', 'POST', { url: 'https://p', name: null }],

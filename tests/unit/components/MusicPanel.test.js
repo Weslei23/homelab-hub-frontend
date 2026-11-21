@@ -12,7 +12,6 @@ vi.mock('@/data/musicApi', async (importOriginal) => {
     fetchMusicStatus: vi.fn(),
     downloadMusic: vi.fn(),
     fetchMusicQueue: vi.fn(),
-    clearCompletedQueue: vi.fn(),
     fetchPlaylists: vi.fn(),
     addPlaylist: vi.fn(),
     setPlaylistEnabled: vi.fn(),
@@ -26,7 +25,7 @@ const { default: MusicPanel } = await import('@/components/MusicPanel.vue')
 
 const ID = '37i9dQZF1DXcBWIGoYBM5M'
 const PLAYLIST = `https://open.spotify.com/playlist/${ID}`
-const online = { configured: true, reachable: true, version: '3.12.0', syncInterval: '6h' }
+const online = { configured: true, reachable: true, version: '3.12.0', syncInterval: '6h', url: 'http://192.168.3.182:8582' }
 const mix = {
   id: 1,
   name: 'Academia',
@@ -51,7 +50,6 @@ beforeEach(() => {
   api.fetchMusicStatus.mockResolvedValue(online)
   api.fetchMusicQueue.mockResolvedValue([])
   api.fetchPlaylists.mockResolvedValue([mix])
-  api.clearCompletedQueue.mockResolvedValue(null)
 })
 
 afterEach(() => {
@@ -251,18 +249,18 @@ describe('fila', () => {
     expect((await mountPanel()).find('.queue .feedback').text()).toBe('O Downtify recusou o acesso: confira o DOWNTIFY_TOKEN')
   })
 
-  it('limpar concluidos so aparece quando ha concluidos ou erros', async () => {
-    api.fetchMusicQueue.mockResolvedValue([queue[0]])
+  it('link para abrir o Downtify (onde a fila e limpa)', async () => {
+    const link = (await mountPanel()).find('.queue .link-btn')
+
+    expect(link.text()).toBe('Abrir no Downtify ↗')
+    expect(link.attributes('href')).toBe('http://192.168.3.182:8582')
+    expect(link.attributes('target')).toBe('_blank')
+  })
+
+  it('sem url nao mostra o link', async () => {
+    api.fetchMusicStatus.mockResolvedValue({ ...online, url: null })
+
     expect((await mountPanel()).find('.queue .link-btn').exists()).toBe(false)
-
-    api.fetchMusicQueue.mockResolvedValue(queue)
-    const wrapper = await mountPanel()
-    api.fetchMusicQueue.mockResolvedValue([queue[0]])
-    await wrapper.find('.queue .link-btn').trigger('click')
-    await flushPromises()
-
-    expect(api.clearCompletedQueue).toHaveBeenCalledOnce()
-    expect(wrapper.findAll('.queue-list li')).toHaveLength(1)
   })
 })
 

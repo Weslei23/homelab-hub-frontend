@@ -36,7 +36,6 @@ let pollTimer = null
 let unmounted = false
 
 const hasActive = computed(() => queue.value.some((item) => item.status === 'queued' || item.status === 'downloading'))
-const hasFinished = computed(() => queue.value.some((item) => item.status === 'done' || item.status === 'error'))
 
 watch(open, (value) => {
   try {
@@ -98,15 +97,6 @@ async function download() {
     feedback.value = { ok: false, text: e.message }
   } finally {
     downloading.value = false
-  }
-}
-
-async function clearFinished() {
-  try {
-    await api.clearCompletedQueue()
-    await refreshQueue()
-  } catch (e) {
-    queueError.value = e.message
   }
 }
 
@@ -217,7 +207,8 @@ onUnmounted(() => {
         <div class="block queue">
           <div class="block-title">
             <h3>Fila do Downtify</h3>
-            <button v-if="hasFinished" type="button" class="link-btn" @click="clearFinished">Limpar concluídos</button>
+            <!-- O Downtify nao deixa apps limparem a fila: a limpeza e feita na pagina dele -->
+            <a v-if="status.url" :href="status.url" target="_blank" rel="noopener" class="link-btn">Abrir no Downtify ↗</a>
           </div>
           <p v-if="queueError" class="feedback error">{{ queueError }}</p>
           <p v-else-if="queue.length === 0" class="muted">Nada na fila.</p>
@@ -421,6 +412,11 @@ button.danger {
   color: #60a5fa;
   padding: 0;
   font-size: 12px;
+  text-decoration: none;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
 }
 
 .feedback {
