@@ -2,7 +2,8 @@ import { getToken, logout } from '@/data/useAuth'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
-async function request(path, options = {}) {
+// Exportado para os outros modulos de API (ex.: musicApi) reaproveitarem token e tratamento de erros
+export async function request(path, options = {}) {
   const token = getToken()
   const res = await fetch(`${BASE}/api${path}`, {
     headers: {
@@ -28,9 +29,11 @@ async function request(path, options = {}) {
   return res.status === 204 ? null : res.json()
 }
 
-const json = (method, body) => ({ method, body: JSON.stringify(body) })
+export const json = (method, body) => ({ method, body: JSON.stringify(body) })
 
 export const fetchCatalog = () => request('/catalog')
+// { [cardId]: { state: 'UP' | 'DOWN' | 'UNKNOWN', latencyMs, httpStatus, checkedAt } }
+export const fetchStatus = () => request('/status')
 
 export const createCategory = (label) => request('/categories', json('POST', { label }))
 export const renameCategory = (id, label) => request(`/categories/${id}`, json('PUT', { label }))

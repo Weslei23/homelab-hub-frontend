@@ -6,6 +6,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 COPY . .
+# Testes unitarios (Vitest): se algum falhar, o build para e nao ha deploy
+RUN npm test
 # VITE_API_URL vazio = chamadas relativas (/api), tratadas pelo proxy do nginx
 RUN npm run build
 

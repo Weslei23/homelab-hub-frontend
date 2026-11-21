@@ -100,7 +100,7 @@ export const categories = [
     id: 'utilitarios',
     label: 'Utilitários',
     services: [
-      { name: 'Downtify', url: 'http://192.168.3.146:8582/', icon: downtifyIcon, description: 'Download de músicas do Spotify' },
+      { name: 'Downtify', url: 'http://192.168.3.182:8582/', icon: downtifyIcon, description: 'Download de músicas do Spotify' },
       { name: 'MeTube', url: 'http://192.168.3.146:8081/', icon: meTubeIcon, description: 'Download de videos do Youtube' },
       { name: 'Stirling-PDF', url: 'http://192.168.3.146:8080/login', icon: stirlingIcon, description: 'Editor de PDFs' },
       { name: 'Excalidraw', url: 'http://192.168.3.146:17638/', icon: excalidrawIcon, description: 'Quadro branco' },

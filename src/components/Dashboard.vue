@@ -2,14 +2,17 @@
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useCategories, loadCatalog } from '@/data/useCategories'
 import { useAuth } from '@/data/useAuth'
+import { useStatus } from '@/data/useStatus'
 import CardModal from '@/components/CardModal.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 import ServiceCard from '@/components/ServiceCard.vue'
+import MusicPanel from '@/components/MusicPanel.vue'
 
 const { categories, apiOnline, addCategory, renameCategory, removeCategory, addCard, updateCard, removeCard } =
   useCategories()
 
 const { session, isAdmin, logout } = useAuth()
+const { statuses, refreshStatus } = useStatus()
 
 const search = ref('')
 const editMode = ref(false)
@@ -18,10 +21,15 @@ const canEdit = computed(() => isAdmin.value && apiOnline.value && editMode.valu
 const cardTarget = ref(null)
 const categoryTarget = ref(null)
 
-const submitCard = (payload) =>
-  cardTarget.value.mode === 'edit'
-    ? updateCard(cardTarget.value.card.id, payload)
-    : addCard(cardTarget.value.categoryId, payload)
+async function submitCard(payload) {
+  const result =
+    cardTarget.value.mode === 'edit'
+      ? await updateCard(cardTarget.value.card.id, payload)
+      : await addCard(cardTarget.value.categoryId, payload)
+  // O backend verifica o card novo/editado em segundo plano; busca o resultado logo em seguida
+  setTimeout(refreshStatus, 3500)
+  return result
+}
 
 const submitCategory = (label) =>
   categoryTarget.value.mode === 'edit'
@@ -123,6 +131,9 @@ const filteredCategories = computed(() => {
       Backend indisponível — exibindo o catálogo padrão; não é possível editar.
     </p>
 
+    <!-- Downloads pelo Downtify: so para ADMIN; o painel se esconde sozinho sem DOWNTIFY_URL -->
+    <MusicPanel v-if="isAdmin && apiOnline" />
+
     <section v-for="category in filteredCategories" :key="category.id" class="category-section">
       <div class="category-title">
         <h2>{{ category.label }}</h2>
@@ -138,6 +149,7 @@ const filteredCategories = computed(() => {
           v-for="service in category.services"
           :key="service.id ?? service.name"
           :service="service"
+          :status="service.id != null ? statuses[service.id] : null"
           :editable="canEdit"
           :locked="!isAdmin"
           @edit="cardTarget = { mode: 'edit', card: $event }"

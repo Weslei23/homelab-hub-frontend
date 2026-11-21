@@ -16,9 +16,37 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  // { state: 'UP' | 'DOWN' | 'UNKNOWN', latencyMs, httpStatus, checkedAt } ou null
+  status: {
+    type: Object,
+    default: null,
+  },
 })
 
 const iconSrc = computed(() => resolveIcon(props.service.icon))
+
+// Sem link configurado nao ha o que verificar: nao mostra o indicador
+const statusState = computed(() => {
+  if (props.service.url === '#') return null
+  return props.status?.state ?? 'PENDING'
+})
+
+const statusLabel = computed(() => {
+  const s = props.status
+  const checked = s?.checkedAt
+    ? ` · verificado às ${new Date(s.checkedAt).toLocaleTimeString('pt-BR')}`
+    : ''
+  switch (statusState.value) {
+    case 'UP':
+      return `Online · ${s.latencyMs} ms${checked}`
+    case 'DOWN':
+      return `Offline${s.httpStatus ? ` (HTTP ${s.httpStatus})` : ''}${checked}`
+    case 'UNKNOWN':
+      return 'Status desconhecido'
+    default:
+      return 'Verificando…'
+  }
+})
 
 const emit = defineEmits(['edit'])
 
@@ -49,6 +77,14 @@ function onClick(event) {
       <p v-if="service.description">{{ service.description }}</p>
       <p v-if="service.url === '#' && editable" class="hint">Clique para definir o link</p>
     </div>
+    <span
+      v-if="statusState"
+      class="status-dot"
+      :class="[statusState.toLowerCase(), { shifted: editable }]"
+      :title="statusLabel"
+      role="img"
+      :aria-label="statusLabel"
+    />
     <button
       v-if="editable"
       type="button"
@@ -148,6 +184,49 @@ function onClick(event) {
   background: #0f172a;
   color: #cbd5e1;
   cursor: pointer;
+}
+
+.status-dot {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #64748b;
+}
+
+/* No modo de edicao o botao ocupa o canto: o ponto vai para o lado */
+.status-dot.shifted {
+  right: 44px;
+  top: 18px;
+}
+
+.status-dot.up {
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+}
+
+.status-dot.down {
+  background: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.status-dot.pending {
+  background: #475569;
+}
+
+@keyframes pulse {
+  50% {
+    box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot.down {
+    animation: none;
+  }
 }
 
 .edit-btn:hover {
