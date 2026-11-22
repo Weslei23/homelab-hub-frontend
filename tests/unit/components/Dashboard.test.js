@@ -29,6 +29,9 @@ vi.mock('@/data/useAuth', () => ({
 vi.mock('@/data/useStatus', () => ({ useStatus: () => ({ statuses, refreshStatus }) }))
 // O painel de musicas tem testes proprios (MusicPanel.test.js); aqui so importa quando ele aparece
 vi.mock('@/components/MusicPanel.vue', () => ({ default: { name: 'MusicPanel', template: '<div class="music-stub" />' } }))
+vi.mock('@/components/MediaPanel.vue', () => ({
+  default: { name: 'MediaPanel', props: ['admin'], template: '<div class="media-stub" :data-admin="String(admin)" />' },
+}))
 
 const { default: Dashboard } = await import('@/components/Dashboard.vue')
 
@@ -295,6 +298,27 @@ describe('painel de musicas', () => {
     apiOnline.value = false
 
     expect(mountDashboard().find('.music-stub').exists()).toBe(false)
+  })
+})
+
+describe('painel de filmes e series', () => {
+  it('admin ve o painel com a busca de pedidos', () => {
+    const panel = mountDashboard().find('.media-stub')
+
+    expect(panel.exists()).toBe(true)
+    expect(panel.attributes('data-admin')).toBe('true')
+  })
+
+  it('usuario comum ve o painel sem a busca', () => {
+    asUser()
+
+    expect(mountDashboard().find('.media-stub').attributes('data-admin')).toBe('false')
+  })
+
+  it('nao aparece com o backend fora do ar', () => {
+    apiOnline.value = false
+
+    expect(mountDashboard().find('.media-stub').exists()).toBe(false)
   })
 })
 

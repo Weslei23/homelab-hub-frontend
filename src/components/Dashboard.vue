@@ -7,6 +7,7 @@ import CardModal from '@/components/CardModal.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
 import ServiceCard from '@/components/ServiceCard.vue'
 import MusicPanel from '@/components/MusicPanel.vue'
+import MediaPanel from '@/components/MediaPanel.vue'
 
 const { categories, apiOnline, addCategory, renameCategory, removeCategory, addCard, updateCard, removeCard } =
   useCategories()
@@ -133,6 +134,9 @@ const filteredCategories = computed(() => {
 
     <!-- Downloads pelo Downtify: so para ADMIN; o painel se esconde sozinho sem DOWNTIFY_URL -->
     <MusicPanel v-if="isAdmin && apiOnline" />
+
+    <!-- Filmes e series: todos veem; so ADMIN pede titulos. Some sozinho sem Sonarr/Radarr/Jellyfin no backend -->
+    <MediaPanel v-if="apiOnline" :admin="isAdmin" />
 
     <section v-for="category in filteredCategories" :key="category.id" class="category-section">
       <div class="category-title">
