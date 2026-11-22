@@ -28,9 +28,12 @@ const STATE_LABELS = {
   failed: 'Falhou',
 }
 
+const TAB_KEY = 'homepage.media.tab'
+
 const overview = ref(null)
 const loadError = ref('')
 const open = ref(localStorage.getItem(OPEN_KEY) !== 'false')
+const tab = ref(localStorage.getItem(TAB_KEY) || 'queue')
 
 let pollTimer = null
 let unmounted = false
@@ -44,6 +47,41 @@ const requestable = computed(() => ({ movie: !!online('radarr'), series: !!onlin
 const canRequest = computed(() => props.admin && (requestable.value.movie || requestable.value.series))
 const hasArr = computed(() => services.value.sonarr?.configured || services.value.radarr?.configured)
 const hasActive = computed(() => (overview.value?.queue ?? []).some((i) => i.state !== 'paused'))
+const hasJellyfin = computed(() => !!services.value.jellyfin?.configured)
+
+/** Uma aba por vez deixa o painel compacto; so aparecem as abas dos servicos configurados. */
+const tabs = computed(() => {
+  const o = overview.value
+  if (!o) return []
+  return [
+    hasArr.value && { key: 'queue', label: 'Downloads', count: o.queue.length },
+    hasArr.value && { key: 'upcoming', label: 'Próximos', count: o.upcoming.length },
+    hasJellyfin.value && { key: 'playing', label: 'Assistindo', count: o.nowPlaying.length },
+    hasJellyfin.value && { key: 'recent', label: 'Recentes', count: 0 },
+    canRequest.value && { key: 'request', label: '+ Pedir', count: 0 },
+  ].filter(Boolean)
+})
+/** Aba lembrada, ou a primeira disponivel se a lembrada sumiu (ex.: servico desconfigurado). */
+const activeTab = computed(() => (tabs.value.some((t) => t.key === tab.value) ? tab.value : tabs.value[0]?.key))
+
+/** Resumo no cabecalho, util com o painel recolhido: "2 baixando · 1 assistindo". */
+const summary = computed(() => {
+  const o = overview.value
+  if (!o) return ''
+  const parts = []
+  if (o.queue.length) parts.push(`${o.queue.length} baixando`)
+  if (o.nowPlaying.length) parts.push(`${o.nowPlaying.length} assistindo`)
+  return parts.join(' · ')
+})
+
+function selectTab(key) {
+  tab.value = key
+  try {
+    localStorage.setItem(TAB_KEY, key)
+  } catch {
+    /* sem localStorage: so nao lembra a aba */
+  }
+}
 
 watch(open, (value) => {
   try {
@@ -127,6 +165,7 @@ onUnmounted(() => {
       >
         {{ chipText(service) }}
       </span>
+      <span v-if="summary" class="summary">{{ summary }}</span>
       <span class="chevron" :class="{ open }">▾</span>
     </button>
 
@@ -136,15 +175,31 @@ onUnmounted(() => {
         <li v-for="error in overview.errors" :key="error">{{ error }}</li>
       </ul>
 
-      <MediaRequest v-if="canRequest" :available="requestable" @requested="refresh" />
+      <div class="tabs" role="tablist" aria-label="Seções de filmes e séries">
+        <button
+          v-for="t in tabs"
+          :key="t.key"
+          type="button"
+          role="tab"
+          class="tab"
+          :class="{ active: activeTab === t.key }"
+          :aria-selected="activeTab === t.key"
+          :data-tab="t.key"
+          @click="selectTab(t.key)"
+        >
+          {{ t.label }}<span v-if="t.count" class="count">{{ t.count }}</span>
+        </button>
+        <span class="tab-links">
+          <a v-if="activeTab === 'queue' && services.sonarr?.url" :href="`${services.sonarr.url}/activity/queue`" target="_blank" rel="noopener" class="link-btn">Sonarr ↗</a>
+          <a v-if="activeTab === 'queue' && services.radarr?.url" :href="`${services.radarr.url}/activity/queue`" target="_blank" rel="noopener" class="link-btn">Radarr ↗</a>
+          <a v-if="(activeTab === 'playing' || activeTab === 'recent') && services.jellyfin?.url" :href="services.jellyfin.url" target="_blank" rel="noopener" class="link-btn">Jellyfin ↗</a>
+        </span>
+      </div>
 
-      <div class="columns">
-        <div v-if="hasArr" class="block">
-          <div class="block-title">
-            <h3>Baixando agora</h3>
-            <a v-if="services.sonarr?.url" :href="`${services.sonarr.url}/activity/queue`" target="_blank" rel="noopener" class="link-btn">Sonarr ↗</a>
-            <a v-if="services.radarr?.url" :href="`${services.radarr.url}/activity/queue`" target="_blank" rel="noopener" class="link-btn">Radarr ↗</a>
-          </div>
+      <div class="tab-body">
+        <MediaRequest v-if="activeTab === 'request'" :available="requestable" @requested="refresh" />
+
+        <template v-else-if="activeTab === 'queue'">
           <p v-if="overview.queue.length === 0" class="muted">Nenhum download em andamento.</p>
           <ul v-else class="list queue">
             <li v-for="(item, index) in overview.queue" :key="`${item.title}-${item.detail}-${index}`" :class="item.state">
@@ -170,13 +225,9 @@ onUnmounted(() => {
               <small v-if="item.message" class="warning-text">{{ item.message }}</small>
             </li>
           </ul>
-        </div>
+        </template>
 
-        <div v-if="services.jellyfin?.configured" class="block">
-          <div class="block-title">
-            <h3>Assistindo agora</h3>
-            <a v-if="services.jellyfin.url" :href="services.jellyfin.url" target="_blank" rel="noopener" class="link-btn">Jellyfin ↗</a>
-          </div>
+        <template v-else-if="activeTab === 'playing'">
           <p v-if="overview.nowPlaying.length === 0" class="muted">Ninguém assistindo.</p>
           <ul v-else class="list">
             <li v-for="(item, index) in overview.nowPlaying" :key="`${item.user}-${index}`" class="playing">
@@ -191,14 +242,10 @@ onUnmounted(() => {
               </div>
             </li>
           </ul>
-        </div>
+        </template>
 
-        <div v-if="hasArr" class="block">
-          <div class="block-title">
-            <h3>Próximos lançamentos</h3>
-            <small class="muted">14 dias</small>
-          </div>
-          <p v-if="overview.upcoming.length === 0" class="muted">Nada previsto para os próximos dias.</p>
+        <template v-else-if="activeTab === 'upcoming'">
+          <p v-if="overview.upcoming.length === 0" class="muted">Nada previsto para os próximos 14 dias.</p>
           <ul v-else class="list upcoming">
             <li v-for="(item, index) in overview.upcoming" :key="`${item.title}-${item.detail}-${index}`">
               <span class="when">{{ formatWhen(item) }}</span>
@@ -208,14 +255,11 @@ onUnmounted(() => {
               <span v-if="item.hasFile" class="badge" title="Já baixado">✓</span>
             </li>
           </ul>
-        </div>
-      </div>
+        </template>
 
-      <div v-if="services.jellyfin?.configured && overview.recent.length" class="block recent">
-        <div class="block-title">
-          <h3>Adicionados recentemente</h3>
-        </div>
-        <ul class="posters">
+        <template v-else-if="activeTab === 'recent'">
+          <p v-if="overview.recent.length === 0" class="muted">Nada adicionado ainda.</p>
+          <ul v-else class="posters">
           <li v-for="item in overview.recent" :key="item.id">
             <a :href="item.link" target="_blank" rel="noopener" :title="[item.title, item.detail].filter(Boolean).join(' — ')">
               <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.title" loading="lazy" />
@@ -224,6 +268,7 @@ onUnmounted(() => {
             </a>
           </li>
         </ul>
+        </template>
       </div>
     </div>
   </section>
@@ -309,26 +354,59 @@ onUnmounted(() => {
   background: #3a2e0b;
 }
 
-.columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 18px;
+.summary {
+  font-size: 12px;
+  color: #94a3b8;
 }
 
-.block-title {
+.tabs {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 10px;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid #334155;
+  margin-bottom: 12px;
+  overflow-x: auto;
 }
 
-.block-title h3 {
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #94a3b8;
+  padding: 6px 10px;
   font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #64748b;
-  margin: 0;
-  margin-right: auto;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: #f8fafc;
+}
+
+.tab.active {
+  color: #f8fafc;
+  border-bottom-color: #2563eb;
+}
+
+.count {
+  margin-left: 6px;
+  font-size: 11px;
+  background: #334155;
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.tab-links {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  padding-left: 10px;
+}
+
+/* Altura fixa: o painel nao cresce com listas longas */
+.tab-body {
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .link-btn {
@@ -353,8 +431,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 300px;
-  overflow-y: auto;
 }
 
 .list li {
@@ -460,10 +536,6 @@ onUnmounted(() => {
   color: #86efac;
 }
 
-.recent {
-  margin-top: 18px;
-}
-
 .posters {
   list-style: none;
   margin: 0;
@@ -474,7 +546,7 @@ onUnmounted(() => {
 }
 
 .posters li {
-  flex: 0 0 110px;
+  flex: 0 0 80px;
 }
 
 .posters a {
@@ -485,8 +557,8 @@ onUnmounted(() => {
 }
 
 .posters img {
-  width: 110px;
-  height: 165px;
+  width: 80px;
+  height: 120px;
   object-fit: cover;
   border-radius: 8px;
   background: #0f172a;

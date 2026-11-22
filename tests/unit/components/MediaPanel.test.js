@@ -40,11 +40,14 @@ function overview(changes = {}) {
   }
 }
 
-async function mountPanel(admin = true) {
+async function mountPanel(admin = true, tab = null) {
   const wrapper = mount(MediaPanel, { props: { admin }, attachTo: document.body })
   await flushPromises()
+  if (tab) await wrapper.find(`.tab[data-tab="${tab}"]`).trigger('click')
   return wrapper
 }
+
+const tabKeys = (wrapper) => wrapper.findAll('.tab').map((t) => t.attributes('data-tab'))
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -104,19 +107,82 @@ describe('visibilidade', () => {
   })
 })
 
+describe('abas', () => {
+  it('admin ve todas as abas e comeca em Downloads', async () => {
+    const wrapper = await mountPanel()
+
+    expect(tabKeys(wrapper)).toEqual(['queue', 'upcoming', 'playing', 'recent', 'request'])
+    expect(wrapper.find('.tab.active').attributes('data-tab')).toBe('queue')
+    expect(wrapper.findAll('.tab-body > *').length).toBeGreaterThan(0)
+  })
+
+  it('mostra uma secao por vez', async () => {
+    const wrapper = await mountPanel(true, 'playing')
+
+    expect(wrapper.text()).toContain('Ninguém assistindo.')
+    expect(wrapper.text()).not.toContain('Nenhum download em andamento.')
+    expect(wrapper.find('.tab[data-tab="playing"]').attributes('aria-selected')).toBe('true')
+  })
+
+  it('lembra a ultima aba aberta', async () => {
+    await mountPanel(true, 'upcoming')
+    document.body.innerHTML = ''
+
+    const wrapper = await mountPanel()
+
+    expect(localStorage.getItem('homepage.media.tab')).toBe('upcoming')
+    expect(wrapper.find('.tab.active').attributes('data-tab')).toBe('upcoming')
+  })
+
+  it('aba lembrada que sumiu volta para a primeira disponivel', async () => {
+    localStorage.setItem('homepage.media.tab', 'request')
+
+    const wrapper = await mountPanel(false)
+
+    expect(wrapper.find('.tab.active').attributes('data-tab')).toBe('queue')
+  })
+
+  it('contadores nas abas e resumo no cabecalho', async () => {
+    const item = { kind: 'movie', title: 'X', detail: null, state: 'downloading', progress: 1, timeLeft: null, message: null }
+    api.fetchMediaOverview.mockResolvedValue(
+      overview({
+        queue: [item, item],
+        nowPlaying: [{ user: 'ana', title: 'Y', detail: null, device: null, progress: 1, paused: false, imageUrl: null }],
+      })
+    )
+
+    const wrapper = await mountPanel()
+
+    expect(wrapper.find('.tab[data-tab="queue"] .count').text()).toBe('2')
+    expect(wrapper.find('.tab[data-tab="playing"] .count').text()).toBe('1')
+    expect(wrapper.find('.tab[data-tab="upcoming"] .count').exists()).toBe(false)
+    expect(wrapper.find('.summary').text()).toBe('2 baixando · 1 assistindo')
+  })
+
+  it('sem nada acontecendo nao ha resumo', async () => {
+    expect((await mountPanel()).find('.summary').exists()).toBe(false)
+  })
+
+  it('link do Jellyfin aparece nas abas dele', async () => {
+    const wrapper = await mountPanel(true, 'recent')
+
+    expect(wrapper.findAll('.tab-links a').map((a) => a.text())).toEqual(['Jellyfin ↗'])
+  })
+})
+
 describe('pedidos', () => {
   it('admin ve a busca com os tipos disponiveis', async () => {
     api.fetchMediaOverview.mockResolvedValue(
       overview({ services: { sonarr: off('u'), radarr: up('7', 'u'), jellyfin: none } })
     )
 
-    const stub = (await mountPanel()).find('.request-stub')
+    const stub = (await mountPanel(true, 'request')).find('.request-stub')
 
     expect(JSON.parse(stub.attributes('data-available'))).toEqual({ movie: true, series: false })
   })
 
-  it('usuario comum nao ve a busca', async () => {
-    expect((await mountPanel(false)).find('.request-stub').exists()).toBe(false)
+  it('usuario comum nao tem a aba de pedidos', async () => {
+    expect(tabKeys(await mountPanel(false))).not.toContain('request')
   })
 
   it('sem Sonarr e Radarr online nao ha busca', async () => {
@@ -124,11 +190,11 @@ describe('pedidos', () => {
       overview({ services: { sonarr: off('u'), radarr: none, jellyfin: up('10', 'u') } })
     )
 
-    expect((await mountPanel()).find('.request-stub').exists()).toBe(false)
+    expect(tabKeys(await mountPanel())).not.toContain('request')
   })
 
   it('depois de um pedido o painel atualiza', async () => {
-    const wrapper = await mountPanel()
+    const wrapper = await mountPanel(true, 'request')
 
     await wrapper.find('.request-stub').trigger('click')
     await flushPromises()
@@ -184,14 +250,10 @@ describe('downloads', () => {
     expect(links).toContain('http://nas:7878/activity/queue')
   })
 
-  it('sem Sonarr e Radarr as colunas deles somem', async () => {
+  it('sem Sonarr e Radarr as abas deles somem', async () => {
     api.fetchMediaOverview.mockResolvedValue(overview({ services: { sonarr: none, radarr: none, jellyfin: up('10', 'u') } }))
 
-    const text = (await mountPanel()).text()
-
-    expect(text).not.toContain('Baixando agora')
-    expect(text).not.toContain('Próximos lançamentos')
-    expect(text).toContain('Assistindo agora')
+    expect(tabKeys(await mountPanel())).toEqual(['playing', 'recent'])
   })
 })
 
@@ -203,7 +265,7 @@ describe('jellyfin', () => {
       })
     )
 
-    const item = (await mountPanel()).find('.playing')
+    const item = (await mountPanel(true, 'playing')).find('.playing')
 
     expect(item.text()).toContain('⏸ Lupin — S01E01')
     expect(item.text()).toContain('ana · Jellyfin Web · Chrome')
@@ -211,7 +273,7 @@ describe('jellyfin', () => {
   })
 
   it('ninguem assistindo', async () => {
-    expect((await mountPanel()).text()).toContain('Ninguém assistindo.')
+    expect((await mountPanel(true, 'playing')).text()).toContain('Ninguém assistindo.')
   })
 
   it('adicionados recentemente com link para o Jellyfin', async () => {
@@ -221,15 +283,15 @@ describe('jellyfin', () => {
       })
     )
 
-    const poster = (await mountPanel()).find('.posters a')
+    const poster = (await mountPanel(true, 'recent')).find('.posters a')
 
     expect(poster.attributes('href')).toBe('http://nas:8097/web/#/details?id=1')
     expect(poster.attributes('title')).toBe('Duna — 2021')
     expect(poster.find('img').attributes('alt')).toBe('Duna')
   })
 
-  it('sem itens recentes a faixa nao aparece', async () => {
-    expect((await mountPanel()).find('.recent').exists()).toBe(false)
+  it('sem itens recentes', async () => {
+    expect((await mountPanel(true, 'recent')).text()).toContain('Nada adicionado ainda.')
   })
 })
 
@@ -245,7 +307,7 @@ describe('proximos lancamentos', () => {
       })
     )
 
-    const items = (await mountPanel()).findAll('.upcoming li')
+    const items = (await mountPanel(true, 'upcoming')).findAll('.upcoming li')
 
     expect(items[0].find('.when').text()).toBe('Hoje 21:00')
     expect(items[0].find('.badge').exists()).toBe(true)
@@ -256,7 +318,7 @@ describe('proximos lancamentos', () => {
   })
 
   it('nada previsto', async () => {
-    expect((await mountPanel()).text()).toContain('Nada previsto para os próximos dias.')
+    expect((await mountPanel(true, 'upcoming')).text()).toContain('Nada previsto para os próximos 14 dias.')
   })
 })
 

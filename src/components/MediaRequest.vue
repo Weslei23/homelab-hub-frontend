@@ -110,7 +110,7 @@ async function request(result) {
 
 <style scoped>
 .media-request {
-  margin-bottom: 18px;
+  margin-bottom: 4px;
 }
 
 .search-form {
@@ -221,8 +221,6 @@ button.small {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 420px;
-  overflow-y: auto;
 }
 
 .results li {
