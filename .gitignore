@@ -37,3 +37,7 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# Documentacao local (fica so nesta maquina, fora do git)
+/README.md
+/docs/
