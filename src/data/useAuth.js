@@ -64,6 +64,18 @@ export async function register(username, email, password) {
   await login(email, password)
 }
 
+/** Configuracao publica do login: { registrationEnabled }. Na duvida (erro), esconde o cadastro. */
+export async function fetchAuthConfig() {
+  try {
+    const res = await fetch(`${BASE}/api/v1/auth/config`)
+    if (!res.ok) return { registrationEnabled: false }
+    const data = await res.json()
+    return { registrationEnabled: data?.registrationEnabled === true }
+  } catch {
+    return { registrationEnabled: false }
+  }
+}
+
 export function useAuth() {
   return { session, isAuthenticated, isAdmin, login, register, logout }
 }

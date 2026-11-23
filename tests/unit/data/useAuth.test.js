@@ -124,6 +124,29 @@ describe('cadastro', () => {
   })
 })
 
+describe('configuracao do login', () => {
+  it('le se o cadastro esta ligado', async () => {
+    const fetch = mockFetch(response(200, { registrationEnabled: true }))
+    const auth = await loadAuth()
+
+    expect(await auth.fetchAuthConfig()).toEqual({ registrationEnabled: true })
+    expect(fetch.mock.calls[0][0]).toBe('/api/v1/auth/config')
+  })
+
+  it.each([
+    ['desligado', () => mockFetch(response(200, { registrationEnabled: false }))],
+    ['valor que nao e booleano', () => mockFetch(response(200, { registrationEnabled: 'sim' }))],
+    ['erro HTTP', () => mockFetch(response(500, {}))],
+    ['corpo vazio', () => mockFetch(response(200))],
+    ['backend fora do ar', () => vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))],
+  ])('%s esconde o cadastro', async (_name, setup) => {
+    setup()
+    const auth = await loadAuth()
+
+    expect(await auth.fetchAuthConfig()).toEqual({ registrationEnabled: false })
+  })
+})
+
 describe('logout', () => {
   it('limpa a sessao e o localStorage', async () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: 'jwt', role: 'ADMIN' }))

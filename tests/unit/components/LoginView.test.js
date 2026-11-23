@@ -5,6 +5,7 @@ import { deferred } from '../helpers'
 vi.mock('@/data/useAuth', () => ({
   login: vi.fn(),
   register: vi.fn(),
+  fetchAuthConfig: vi.fn(),
 }))
 
 const auth = await import('@/data/useAuth')
@@ -13,7 +14,16 @@ const { default: LoginView } = await import('@/components/LoginView.vue')
 beforeEach(() => {
   auth.login.mockReset().mockResolvedValue()
   auth.register.mockReset().mockResolvedValue()
+  // Cadastro ligado na maioria dos testes; os testes de "cadastro desligado" trocam isto
+  auth.fetchAuthConfig.mockReset().mockResolvedValue({ registrationEnabled: true })
 })
+
+/** Monta e espera a configuracao do backend chegar. */
+async function mountLogin() {
+  const wrapper = mount(LoginView)
+  await flushPromises()
+  return wrapper
+}
 
 const inputs = (wrapper) => ({
   username: wrapper.find('input[type="text"]'),
@@ -26,8 +36,8 @@ async function switchToRegister(wrapper) {
 }
 
 describe('login', () => {
-  it('abre no modo de login', () => {
-    const wrapper = mount(LoginView)
+  it('abre no modo de login', async () => {
+    const wrapper = await mountLogin()
 
     expect(wrapper.find('.lead').text()).toBe('Entre para acessar o dashboard')
     expect(wrapper.find('.primary').text()).toBe('Entrar')
@@ -39,7 +49,7 @@ describe('login', () => {
     [{ email: '  ', password: 'x' }, 'Informe o e-mail'],
     [{ email: 'ana@lab.local', password: '' }, 'Informe a senha'],
   ])('%o -> "%s"', async (values, message) => {
-    const wrapper = mount(LoginView)
+    const wrapper = await mountLogin()
     await inputs(wrapper).email.setValue(values.email)
     await inputs(wrapper).password.setValue(values.password)
 
@@ -50,7 +60,7 @@ describe('login', () => {
   })
 
   it('entra com o e-mail sem espacos e a senha como esta', async () => {
-    const wrapper = mount(LoginView)
+    const wrapper = await mountLogin()
     await inputs(wrapper).email.setValue('  ana@lab.local ')
     await inputs(wrapper).password.setValue(' senha com espaco ')
 
@@ -62,7 +72,7 @@ describe('login', () => {
   it('mostra "Aguarde..." enquanto entra', async () => {
     const pending = deferred()
     auth.login.mockReturnValue(pending.promise)
-    const wrapper = mount(LoginView)
+    const wrapper = await mountLogin()
     await inputs(wrapper).email.setValue('ana@lab.local')
     await inputs(wrapper).password.setValue('x')
 
@@ -77,7 +87,7 @@ describe('login', () => {
 
   it('mostra o erro do servidor', async () => {
     auth.login.mockRejectedValue(new Error('E-mail ou senha invalidos'))
-    const wrapper = mount(LoginView)
+    const wrapper = await mountLogin()
     await inputs(wrapper).email.setValue('ana@lab.local')
     await inputs(wrapper).password.setValue('errada')
 
@@ -90,7 +100,7 @@ describe('login', () => {
 
 describe('cadastro', () => {
   it('alterna para o modo de cadastro', async () => {
-    const wrapper = mount(LoginView)
+    const wrapper = await mountLogin()
 
     await switchToRegister(wrapper)
 
@@ -102,7 +112,7 @@ describe('cadastro', () => {
   })
 
   it('trocar de modo limpa o erro', async () => {
-    const wrapper = mount(LoginView)
+    const wrapper = await mountLogin()
     await wrapper.find('form').trigger('submit')
     expect(wrapper.find('[role="alert"]').exists()).toBe(true)
 
@@ -112,10 +122,10 @@ describe('cadastro', () => {
   })
 
   it('nome de usuario obrigatorio', async () => {
-    const wrapper = mount(LoginView)
+    const wrapper = await mountLogin()
     await switchToRegister(wrapper)
     await inputs(wrapper).email.setValue('bia@lab.local')
-    await inputs(wrapper).password.setValue('x')
+    await inputs(wrapper).password.setValue('senha-forte')
 
     await wrapper.find('form').trigger('submit')
 
@@ -124,24 +134,84 @@ describe('cadastro', () => {
   })
 
   it('cadastra com os campos limpos', async () => {
-    const wrapper = mount(LoginView)
+    const wrapper = await mountLogin()
     await switchToRegister(wrapper)
     await inputs(wrapper).username.setValue(' bia ')
     await inputs(wrapper).email.setValue(' bia@lab.local ')
-    await inputs(wrapper).password.setValue('senha')
+    await inputs(wrapper).password.setValue('senha-forte')
 
     await wrapper.find('form').trigger('submit')
 
-    expect(auth.register).toHaveBeenCalledWith('bia', 'bia@lab.local', 'senha')
+    expect(auth.register).toHaveBeenCalledWith('bia', 'bia@lab.local', 'senha-forte')
     expect(auth.login).not.toHaveBeenCalled()
   })
 
+  it('senha curta no cadastro nao chama o backend', async () => {
+    const wrapper = await mountLogin()
+    await switchToRegister(wrapper)
+    await inputs(wrapper).username.setValue('bia')
+    await inputs(wrapper).email.setValue('bia@lab.local')
+    await inputs(wrapper).password.setValue('1234567')
+
+    await wrapper.find('form').trigger('submit')
+
+    expect(wrapper.find('[role="alert"]').text()).toBe('A senha deve ter pelo menos 8 caracteres')
+    expect(inputs(wrapper).password.attributes('minlength')).toBe('8')
+    expect(auth.register).not.toHaveBeenCalled()
+  })
+
+  it('senha curta no login e aceita (a regra vale so para contas novas)', async () => {
+    const wrapper = await mountLogin()
+    await inputs(wrapper).email.setValue('ana@lab.local')
+    await inputs(wrapper).password.setValue('123')
+
+    await wrapper.find('form').trigger('submit')
+
+    expect(auth.login).toHaveBeenCalledWith('ana@lab.local', '123')
+    expect(inputs(wrapper).password.attributes('minlength')).toBeUndefined()
+  })
+
   it('volta para o login', async () => {
-    const wrapper = mount(LoginView)
+    const wrapper = await mountLogin()
     await switchToRegister(wrapper)
 
     await wrapper.find('button.link').trigger('click')
 
     expect(wrapper.find('.primary').text()).toBe('Entrar')
+  })
+})
+
+describe('cadastro desligado no backend', () => {
+  it('esconde o botao "Criar conta"', async () => {
+    auth.fetchAuthConfig.mockResolvedValue({ registrationEnabled: false })
+
+    const wrapper = await mountLogin()
+
+    expect(wrapper.find('button.link').exists()).toBe(false)
+    expect(wrapper.find('.primary').text()).toBe('Entrar')
+  })
+
+  it('o botao so aparece depois que o backend confirma', async () => {
+    const pending = deferred()
+    auth.fetchAuthConfig.mockReturnValue(pending.promise)
+
+    const wrapper = mount(LoginView)
+    expect(wrapper.find('button.link').exists()).toBe(false)
+
+    pending.resolve({ registrationEnabled: true })
+    await flushPromises()
+    expect(wrapper.find('button.link').exists()).toBe(true)
+  })
+
+  it('mostra o aviso de muitas tentativas vindo do backend', async () => {
+    auth.login.mockRejectedValue(new Error('Muitas tentativas de login. Tente novamente em 15 min'))
+    const wrapper = await mountLogin()
+    await inputs(wrapper).email.setValue('ana@lab.local')
+    await inputs(wrapper).password.setValue('errada')
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').text()).toBe('Muitas tentativas de login. Tente novamente em 15 min')
   })
 })

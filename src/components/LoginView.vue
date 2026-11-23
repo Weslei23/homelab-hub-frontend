@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { login, register } from '@/data/useAuth'
+import { computed, onMounted, ref } from 'vue'
+import { fetchAuthConfig, login, register } from '@/data/useAuth'
 import servidorIcon from '@/components/icons/servidor.svg'
 
 const mode = ref('login') // 'login' | 'register'
@@ -9,6 +9,15 @@ const email = ref('')
 const password = ref('')
 const error = ref('')
 const busy = ref(false)
+// O backend diz se o cadastro publico esta ligado; ate responder, o botao "Criar conta" fica escondido
+const registrationEnabled = ref(false)
+
+/** Mesma regra do backend (BCrypt usa no maximo 72 bytes). */
+const MIN_PASSWORD = 8
+
+onMounted(async () => {
+  registrationEnabled.value = (await fetchAuthConfig()).registrationEnabled
+})
 
 const isRegister = computed(() => mode.value === 'register')
 
@@ -21,6 +30,9 @@ async function submit() {
   if (isRegister.value && !username.value.trim()) return (error.value = 'Informe o nome de usuário')
   if (!email.value.trim()) return (error.value = 'Informe o e-mail')
   if (!password.value) return (error.value = 'Informe a senha')
+  if (isRegister.value && password.value.length < MIN_PASSWORD) {
+    return (error.value = `A senha deve ter pelo menos ${MIN_PASSWORD} caracteres`)
+  }
 
   busy.value = true
   error.value = ''
@@ -57,7 +69,12 @@ async function submit() {
 
       <label>
         Senha
-        <input v-model="password" type="password" :autocomplete="isRegister ? 'new-password' : 'current-password'" />
+        <input
+          v-model="password"
+          type="password"
+          :autocomplete="isRegister ? 'new-password' : 'current-password'"
+          :minlength="isRegister ? MIN_PASSWORD : undefined"
+        />
       </label>
 
       <p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -66,7 +83,7 @@ async function submit() {
         {{ busy ? 'Aguarde...' : isRegister ? 'Criar conta' : 'Entrar' }}
       </button>
 
-      <button type="button" class="link" @click="switchMode">
+      <button v-if="registrationEnabled" type="button" class="link" @click="switchMode">
         {{ isRegister ? 'Já tenho conta' : 'Criar conta' }}
       </button>
       <p v-if="isRegister" class="note">Novas contas têm acesso somente de visualização.</p>
